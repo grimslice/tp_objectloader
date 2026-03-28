@@ -11,13 +11,28 @@ local GetTableLength = function(T)
 end
 
 local LoadModel = function(inputModel)
-   local model = GetHashKey(inputModel)
+    local model = GetHashKey(inputModel)
+ 
+    RequestModel(model)
 
-   RequestModel(model)
+    local await = 10000
+    local loaded = true
 
-   while not HasModelLoaded(model) do RequestModel(model)
-       Citizen.Wait(10)
-   end
+    while not HasModelLoaded(model) do 
+        RequestModel(model)
+
+        await = await - 10
+
+        if await <= 0 then
+            loaded = false
+            print('attempted to load a model but took too long.', 'model: ' .. model)
+            break
+        end
+
+        Citizen.Wait(10)
+    end
+
+    return loaded
 end
 
 local RemoveEntityProperly = function(entity, objectHash)
@@ -85,37 +100,40 @@ Citizen.CreateThread(function()
                   location.EntityHandler = nil
                end
    
-               if distance <= location.ObjectRenderDistance and location.EntityHandler == nil then
+              if distance <= location.ObjectRenderDistance and location.EntityHandler == nil then
    
 
-                  LoadModel( location.Object )
+                  local loaded = LoadModel( location.Object )
 
-                  local doorState = location.IsDoor and true or false
+                  if loaded then
+                     local doorState = location.IsDoor and true or false
    
-                  local toVec  = vector3(location.Coords.x, location.Coords.y, location.Coords.z)
-                  local object = CreateObjectNoOffset(GetHashKey(location.Object), toVec, false, false, doorState, false, false)
+                     local toVec  = vector3(location.Coords.x, location.Coords.y, location.Coords.z)
+                     local object = CreateObjectNoOffset(GetHashKey(location.Object), toVec, false, false, doorState, false, false)
+      
+                     SetEntityVisible(object, true)
+                     SetEntityRotation(object, location.Coords.pitch, location.Coords.roll, location.Coords.yaw, 2)
+                     SetEntityCoords(object, location.Coords.x, location.Coords.y, location.Coords.z)
+      
+                     if location.PlaceObjectOnGroundProperly then
+                       PlaceObjectOnGroundProperly(object, true)
+                     end
    
-                  SetEntityVisible(object, true)
-                  SetEntityRotation(object, location.Coords.pitch, location.Coords.roll, location.Coords.yaw, 2)
-                  SetEntityCoords(object, location.Coords.x, location.Coords.y, location.Coords.z)
+                     SetEntityCollision(object, true)
+      
+                     SetEntityFadeIn(object, true)
    
-                  if location.PlaceObjectOnGroundProperly then
-                    PlaceObjectOnGroundProperly(object, true)
+                     FreezeEntityPosition(object, true)
+   
+                     if location.IsDoor then 
+                        FreezeEntityPosition(object, false)
+                        AddDoorToSystemNew(3077286490)
+                     end
+   
+   
+                     location.EntityHandler = object
+
                   end
-
-                  SetEntityCollision(object, true)
-   
-                  SetEntityFadeIn(object, true)
-
-                  FreezeEntityPosition(object, true)
-
-                  if location.IsDoor then 
-                     FreezeEntityPosition(object, false)
-                     AddDoorToSystemNew(3077286490)
-                  end
-
-
-                  location.EntityHandler = object
    
                end
 
